@@ -131,6 +131,25 @@ in
 
   (for pkgs.zlib-ng [
     (pin "2.2.4" "sha256-pzNDwwk+XNxQ2Td5l8OBW4eP0RC/ZRHCx3WfKvuQ9aM=")
+    (skipTests "undefined reference to 'pizlonated_nextafter'")
+    (addCMakeFlag "-DZLIB_ENABLE_TESTS=OFF")
+    (addCMakeFlag "-DWITH_GTEST=OFF")
+    (arg { gtest = final.hello; })
+    (skipCheck "test binaries not built")
+  ])
+
+  (for pkgs.nginx [
+    (arg {
+      zlib-ng = final.zlib;
+      modules = [
+        # removed rtmp; needs patching
+        final.nginxModules.dav
+        final.nginxModules.moreheaders
+      ];
+    })
+    (removeCFlag "-Werror,-Wunused-but-set-variable")
+    (removeCFlag "-Wno-unused-parameter")
+    (removeConfigureFlag "--with-pcre-jit")
   ])
 
   {
@@ -235,9 +254,7 @@ in
     (patch ./ports/patch/libedit-20240808-3.1.patch)
   ])
 
-  (for (pkgs.callPackage "${pkgs.path}/pkgs/development/libraries/libidn2"
-    { }
-  ) [ ])
+  (for (pkgs.callPackage "${pkgs.path}/pkgs/development/libraries/libidn2" { }) [ ])
 
   # Special case - libiconv comes from glibc in cross-compilation
   {
@@ -580,12 +597,10 @@ in
   (for pkgs.libepoxy [
     # Nixpkgs ties EGL to X11, but GTK's Wayland backend also needs EGL.
     (use (old: {
-      mesonFlags =
-        builtins.filter (f: !(pkgs.lib.hasPrefix "-Degl=" f)) old.mesonFlags
-        ++ [ "-Degl=yes" ];
-      propagatedBuildInputs = pkgs.lib.unique (
-        old.propagatedBuildInputs ++ [ final.libGL ]
-      );
+      mesonFlags = builtins.filter (f: !(pkgs.lib.hasPrefix "-Degl=" f)) old.mesonFlags ++ [
+        "-Degl=yes"
+      ];
+      propagatedBuildInputs = pkgs.lib.unique (old.propagatedBuildInputs ++ [ final.libGL ]);
       env = old.env // {
         NIX_CFLAGS_COMPILE =
           (old.env.NIX_CFLAGS_COMPILE or "")
@@ -734,9 +749,7 @@ in
       (removeMesonFlag "-Dgi_cross_use_prebuilt_gi=true")
       (addMesonFlag "-Dgi_cross_use_prebuilt_gi=false")
       (use (old: {
-        nativeBuildInputs = builtins.filter (
-          input: input != null
-        ) old.nativeBuildInputs;
+        nativeBuildInputs = builtins.filter (input: input != null) old.nativeBuildInputs;
         # _giscanner is compiled with Fil-C and must be loaded by Fil-C Python.
         mesonFlags = old.mesonFlags ++ [
           "-Dpython=${
@@ -967,8 +980,7 @@ in
         (configure "--with-coroutine=pthread")
         # Disable ractor shareability deep checking - requires rb_objspace_reachable_objects_from
         # which isn't implemented in Fil-C. Return false = conservatively assume not shareable.
-        (astRewrite "ractor.c" "c"
-          "bool rb_ractor_shareable_p_continue($PARAM) { $$$BODY }"
+        (astRewrite "ractor.c" "c" "bool rb_ractor_shareable_p_continue($PARAM) { $$$BODY }"
           "bool rb_ractor_shareable_p_continue($PARAM) {
 #ifdef __FILC__
     return false;
@@ -978,8 +990,7 @@ in
 }"
         )
         # Also patch rb_ractor_make_shareable to skip traversal
-        (astRewrite "ractor.c" "c"
-          "VALUE rb_ractor_make_shareable(VALUE $OBJ) { $$$BODY }"
+        (astRewrite "ractor.c" "c" "VALUE rb_ractor_make_shareable(VALUE $OBJ) { $$$BODY }"
           "VALUE rb_ractor_make_shareable(VALUE $OBJ) {
 #ifdef __FILC__
     FL_SET_RAW($OBJ, RUBY_FL_SHAREABLE);
@@ -1042,9 +1053,7 @@ in
           pkgs.lib.optionalAttrs (old.pname != "systemd-minimal-libs") {
             # This getent wrapper intentionally calls the target libc at runtime.
             # Keep rejecting every other accidental native build-tool reference.
-            disallowedReferences = builtins.filter (p: p != getent) (
-              old.disallowedReferences or [ ]
-            );
+            disallowedReferences = builtins.filter (p: p != getent) (old.disallowedReferences or [ ]);
           }
         ))
 
@@ -1099,7 +1108,7 @@ in
   ])
 
   (for pkgs.strace [
-    (use { postPatch = ''sed -i 's/ vfork/ fork/g' */strace.c''; })
+    (use { postPatch = "sed -i 's/ vfork/ fork/g' */strace.c"; })
   ])
 
   (for pkgs.runit [
@@ -1176,17 +1185,12 @@ in
 
   (for pkgs.trealla [
     (arg { lineEditingLibrary = "readline"; })
-    (src "unstable-2026-09-05"
-      "sha256-/SWCY+oui0ZZewTSMwHm5cvElv45QPu249sPpr/pJqw="
-      (
-        _:
-        "https://github.com/trealla-prolog/trealla/archive/12f4cbd7fc2269265e7306775ded2f6410671499.tar.gz"
-      )
-    )
+    (src "unstable-2026-09-05" "sha256-/SWCY+oui0ZZewTSMwHm5cvElv45QPu249sPpr/pJqw=" (
+      _:
+      "https://github.com/trealla-prolog/trealla/archive/12f4cbd7fc2269265e7306775ded2f6410671499.tar.gz"
+    ))
     (use (old: {
-      postPatch =
-        builtins.replaceStrings [ "Makefile" ] [ "GNUmakefile" ]
-          old.postPatch;
+      postPatch = builtins.replaceStrings [ "Makefile" ] [ "GNUmakefile" ] old.postPatch;
       makeFlags = old.makeFlags ++ [
         "READLINE=1"
         "LIBDIR=$(out)/share/trealla"
@@ -1316,8 +1320,7 @@ in
 
   (for pkgs.at-spi2-core [
     (src "2.60.5" "sha256-YFmnfVB0OP9sjW0GAl+Pn1d0+g+Oq+nJsFmxzEHhu8A=" (
-      v:
-      "https://download.gnome.org/sources/at-spi2-core/2.60/at-spi2-core-${v}.tar.xz"
+      v: "https://download.gnome.org/sources/at-spi2-core/2.60/at-spi2-core-${v}.tar.xz"
     ))
     (patch ./ports/patch/at-spi2-core-2.60.5.patch)
     (tool pkgs.python3)

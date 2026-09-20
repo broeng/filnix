@@ -86,8 +86,6 @@
       makeLibei =
         erlang: pkgsFilc.callPackage ./packages/libei.nix { inherit erlang; };
       libei = makeLibei pkgs.erlang;
-      libei_24 = makeLibei pkgs.erlang_24;
-      libei_25 = makeLibei pkgs.erlang_25;
       libei_26 = makeLibei pkgs.erlang_26;
       libei_27 = makeLibei pkgs.erlang_27;
       libei_28 = makeLibei pkgs.erlang_28;
@@ -201,8 +199,6 @@
         inherit (pkgsFilc) openssl-sarcasm;
         inherit
           libei
-          libei_24
-          libei_25
           libei_26
           libei_27
           libei_28
